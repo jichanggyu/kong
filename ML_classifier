@@ -1,0 +1,105 @@
+import numpy as np  # sidata와 label데이터 값 불러오기
+
+SI_ji = np.fromfile("sidata_ad_ji.dat",dtype = "double")
+Label_ji = np.fromfile("label_ad_ji.dat",dtype = "double")
+SI_jak = np.fromfile("sidata_ad_jak.dat",dtype = "double")
+Label_jak = np.fromfile("label_ad_jak.dat",dtype = "double")
+SI_ne = np.fromfile("sidata_ad_ne.dat",dtype = "double")
+Label_ne = np.fromfile("label_ad_ne.dat",dtype = "double")
+
+
+nV_ji = int(SI_ji.size / 208)
+SI_ji = np.reshape(SI_ji,(nV_ji,208))
+
+nV_jak = int(SI_jak.size / 208)
+SI_jak = np.reshape(SI_jak,(nV_jak,208))
+
+nV_ne = int(SI_ne.size / 208)
+SI_ne = np.reshape(SI_ne,(nV_ne,208))
+
+# sidata, label데이터 크기 확인
+# 글자데이터를 수정해서 데이터값이 적어짐
+print(SI_ji.shape, Label_ji.shape, SI_jak.shape, Label_jak.shape, SI_ne.shape, Label_ne.shape)
+
+import matplotlib
+import matplotlib.pyplot as plt
+
+some_digit = SI_ji[1500]
+some_digit_image = some_digit.reshape(16,13)
+plt.imshow(some_digit_image, cmap = matplotlib.cm.binary, interpolation = 'nearest')
+plt.axis("off")
+plt.show()
+print(Label_ji[1500])
+
+# 이부분은 background부분인 SIdata를 시각화로 보여줌
+
+some_digit1 = SI_ji[3]
+some_digit_image1 = some_digit1.reshape(16,13)
+plt.imshow(some_digit_image1, cmap = matplotlib.cm.binary, interpolation = 'nearest')
+plt.axis("off")
+plt.show()
+print(Label_ji[3])
+
+# 이부분은 획 부분인 SIdata를 시각화로 보여줌
+
+# ji_jak 훈련데이터 값 합치기
+SI_train_ji_jak = np.concatenate((SI_ji,SI_jak))
+Label_train_ji_jak = np.concatenate((Label_ji,Label_jak))
+# ji_jak에서 만든 모델을 ne로 테스트 하기위해 또다른 변수에 복사
+SI_test_ji_jak = SI_ne
+Label_test_ji_jak = Label_ne
+
+SI_train_ji_ne = np.concatenate((SI_ji,SI_ne))
+Label_train_ji_ne = np.concatenate((Label_ji,Label_ne))
+SI_test_ji_ne = SI_jak
+Label_test_ji_ne = Label_jak
+
+SI_train_jak_ne = np.concatenate((SI_jak,SI_ne))
+Label_train_jak_ne = np.concatenate((Label_jak,Label_ne))
+SI_test_jak_ne = SI_ji
+Label_test_jak_ne = Label_ji
+
+
+#랜덤포레스트를 이용하여 rnd_clf이라는 모델 생성 
+from sklearn.ensemble import RandomForestClassifier
+
+rnd_clf = RandomForestClassifier(n_estimators=500, max_leaf_nodes=256, n_jobs=-1, random_state = 42)
+# 파라미터값 설정 n_estimators = 500, max_leaf_nodes = 256, n_jobs = -1, random_state = 42 설정
+rnd_clf.fit(SI_train_ji_jak,Label_train_ji_jak)
+#랜덤포레스트에 ji, jak 데이터 훈련
+
+Label_predict_ji_jak = rnd_clf.predict(SI_test_ji_jak)
+#생선된 모델에 ne sidata를 입력하여 classifier을 함
+
+# 얼마나 잘 분류가 되어있는지 확인하기 위해 confusion_matrix를 표현
+from sklearn.metrics import confusion_matrix, f1_score
+confusion_matrix(Label_test_ji_jak, Label_predict_ji_jak)
+
+# f1_score을 확인하기 위하여 코드 작성
+f1_ji_jak = f1_score(Label_test_ji_jak, Label_predict_ji_jak)
+print(f1_ji_jak)
+
+rnd_clf_2 = RandomForestClassifier(n_estimators=500, max_leaf_nodes=256, n_jobs=-1, random_state = 42)
+rnd_clf_2.fit(SI_train_ji_ne,Label_train_ji_ne)
+
+Label_predict_ji_ne = rnd_clf_2.predict(SI_test_ji_ne)
+
+f1_ji_ne = f1_score(Label_test_ji_ne, Label_predict_ji_ne)
+print(f1_ji_ne)
+
+rnd_clf_3 = RandomForestClassifier(n_estimators=500, max_leaf_nodes=256, n_jobs=-1)
+rnd_clf_3.fit(SI_train_jak_ne,Label_train_jak_ne)
+
+Label_predict_jak_ne = rnd_clf_3.predict(SI_test_jak_ne)
+
+f1_jak_ne = f1_score(Label_test_jak_ne, Label_predict_jak_ne)
+print(f1_jak_ne)
+
+f1_score_avg = (f1_jak_ne+f1_ji_jak+f1_ji_ne)/3
+print(f1_score_avg)
+
+# 분류된 데이터를 그림으로 확인하기 위하여 mat파일을 생성하는 부분
+import scipy.io
+scipy.io.savemat('out_ne_ad1.mat', mdict = {'clf_ne' : Label_predict_ji_jak})
+scipy.io.savemat('out_ji_ad1.mat', mdict = {'clf_ji' : Label_predict_jak_ne})
+scipy.io.savemat('out_jak_ad1.mat', mdict = {'clf_jak' : Label_predict_ji_ne})
